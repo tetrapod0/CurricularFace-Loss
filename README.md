@@ -106,13 +106,25 @@ class CosSimLayer(tf.keras.layers.Layer):
 ```
 I returned normalized_embedding because of drawing plot.
 
-##### **inner product formula**
+**inner product formula**
 ```
 A · B = |A|×|B|×cos(Θ) = a1×b1 + a2×b2 + ... + an×bn
 if |A| == |B| == 1:
     cos(Θ) = a1×b1 + a2×b2 + ... + an×bn = A · B
 ```
 
+### Softmax Head
+```python
+class SoftmaxHead(tf.keras.layers.Layer):
+    def __init__(self, scale=30, name="SoftmaxHead", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.scale = scale
+        self.layer = tf.keras.layers.Activation("softmax")
+    
+    def call(self, logit):
+        return self.layer(logit * self.scale)
+```
+logit_range : [-1, 1] -> [-30, 30]
 
 ---
 
