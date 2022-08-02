@@ -106,7 +106,7 @@ class CosSimLayer(tf.keras.layers.Layer):
 ```
 I returned normalized_embedding because of drawing plot.
 
-##### inner product formula
+##### **inner product formula**
 ```
 A · B = |A|×|B|×cos(Θ) = a1×b1 + a2×b2 + ... + an×bn
 if |A| == |B| == 1:
