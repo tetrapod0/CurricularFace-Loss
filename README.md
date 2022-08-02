@@ -81,6 +81,8 @@ positive_forward = cos(Θ + m)
 
 negative_forward = cos(Θ)² + t×cos(Θ) if HARD_SAMPLE else cos(Θ)
 
+I think margin could be bigger or smaller with embedding dim and n_classes.
+
 
 ### Cosine Similarity Layer
 ```python
@@ -125,6 +127,103 @@ class SoftmaxHead(tf.keras.layers.Layer):
         return self.layer(logit * self.scale)
 ```
 logit_range : [-1, 1] -> [-30, 30]
+
+### Build Model
+```python
+from tensorflow.keras import layers 
+from tensorflow.keras.regularizers import l2
+
+embedding_dim = 3
+
+model_input = layers.Input(shape=(28,28))
+x = layers.Reshape((28,28,1))(model_input)
+x = layers.ZeroPadding2D(padding=2)(x)
+x = layers.Conv2D(32, (3,3), padding="same", activation="relu", kernel_regularizer=l2(1e-5))(x)
+x = layers.MaxPool2D()(x)
+x = layers.Conv2D(64, (3,3), padding="same", activation="relu", kernel_regularizer=l2(1e-5))(x)
+x = layers.MaxPool2D()(x)
+x = layers.Conv2D(128, (3,3), padding="same", activation="relu", kernel_regularizer=l2(1e-5))(x)
+x = layers.MaxPool2D()(x)
+x = layers.Flatten()(x)
+x = layers.Dropout(0.5)(x)
+x = layers.Dense(embedding_dim)(x)
+cosine_sim, embedding = CosSimLayer(10)(x)
+
+model = tf.keras.models.Model(model_input, [cosine_sim, embedding])
+optimizer = tf.optimizers.Adam()
+curricular_face_loss = CurricularFaceLoss()
+```
+Actually, value of embedding_dim causes bottleneck.
+
+Just, For showing plot.
+
+### Training
+```python
+import math
+
+@tf.function
+def train_step(batch_x, batch_y):
+    with tf.GradientTape() as tape:
+        cosine_sim, embedding = model(batch_x, training=True)
+        loss = curricular_face_loss(batch_y, cosine_sim)
+        # loss = softmax_loss(batch_y, cosine_sim)
+        grad = tape.gradient(loss, model.trainable_variables)
+        optimizer.apply_gradients(zip(grad, model.trainable_variables))
+        return loss
+
+n_epochs = 200
+batch_size = 1024
+n_batchs = math.ceil(len(train_x)/batch_size)
+            
+for i in range(n_epochs):
+    avg_loss = 0
+    for j in range(n_batchs):
+        batch_x = train_x[batch_size*j:batch_size*(j+1)]
+        batch_y = train_y[batch_size*j:batch_size*(j+1)]
+        loss = train_step(batch_x, batch_y)
+        avg_loss += loss * len(batch_x)
+    avg_loss /= len(train_x)
+    
+    cosine_sim, embedding = model.predict(test_x)
+    val_loss = curricular_face_loss(test_y, cosine_sim)
+    # val_loss = softmax_loss(test_y, cosine_sim)
+    test_pred = SoftmaxHead()(cosine_sim)
+    test_pred = tf.argmax(test_pred, axis=1)
+    num_ok = len(tf.where(test_pred == tf.argmax(test_y, axis=1)))
+    acc = num_ok/len(test_pred)
+    
+    if (i+1)%10 == 0:
+        print(f"epoch[{i+1:02d}] -> Loss[{avg_loss.numpy():.4f}]  Val_Loss[{val_loss.numpy():.4f}]", 
+              f" t-value[{curricular_face_loss.t.numpy():.4f}]  Accuracy[{acc:.4f}]")
+```
+```
+epoch[10] -> Loss[1.8551]  Val_Loss[1.2478]  t-value[0.7345]  Accuracy[0.9843]
+epoch[20] -> Loss[0.9692]  Val_Loss[0.7504]  t-value[0.7562]  Accuracy[0.9893]
+epoch[30] -> Loss[0.7252]  Val_Loss[0.6810]  t-value[0.7665]  Accuracy[0.9906]
+epoch[40] -> Loss[0.5507]  Val_Loss[0.6342]  t-value[0.7818]  Accuracy[0.9904]
+epoch[50] -> Loss[0.4551]  Val_Loss[0.5614]  t-value[0.7929]  Accuracy[0.9911]
+epoch[60] -> Loss[0.3975]  Val_Loss[0.5497]  t-value[0.8054]  Accuracy[0.9923]
+epoch[70] -> Loss[0.3215]  Val_Loss[0.5462]  t-value[0.8044]  Accuracy[0.9916]
+epoch[80] -> Loss[0.2862]  Val_Loss[0.5387]  t-value[0.8045]  Accuracy[0.9919]
+epoch[90] -> Loss[0.2462]  Val_Loss[0.5368]  t-value[0.8148]  Accuracy[0.9928]
+epoch[100] -> Loss[0.2142]  Val_Loss[0.5258]  t-value[0.8108]  Accuracy[0.9922]
+epoch[110] -> Loss[0.1950]  Val_Loss[0.4901]  t-value[0.8153]  Accuracy[0.9929]
+epoch[120] -> Loss[0.2324]  Val_Loss[0.5108]  t-value[0.8138]  Accuracy[0.9924]
+epoch[130] -> Loss[0.1746]  Val_Loss[0.5301]  t-value[0.8114]  Accuracy[0.9920]
+epoch[140] -> Loss[0.1683]  Val_Loss[0.5268]  t-value[0.8091]  Accuracy[0.9919]
+epoch[150] -> Loss[0.1497]  Val_Loss[0.4928]  t-value[0.8096]  Accuracy[0.9921]
+epoch[160] -> Loss[0.1435]  Val_Loss[0.4524]  t-value[0.8159]  Accuracy[0.9932]
+epoch[170] -> Loss[0.1689]  Val_Loss[0.4995]  t-value[0.8174]  Accuracy[0.9923]
+epoch[180] -> Loss[0.1289]  Val_Loss[0.5296]  t-value[0.8165]  Accuracy[0.9914]
+epoch[190] -> Loss[0.1099]  Val_Loss[0.4797]  t-value[0.8162]  Accuracy[0.9932]
+epoch[200] -> Loss[0.1133]  Val_Loss[0.4690]  t-value[0.8137]  Accuracy[0.9931]
+```
+t-value changes according to positive cosine sim.
+
+It is like health trainer.
+
+t-value give heavier(hard) dumbbell(sample) according to positive cosine sim.
+
 
 ---
 
