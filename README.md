@@ -18,6 +18,7 @@ Under pictures are embeddings about mnist dataset after training.
 
 # Code Explanation
 
+### Load mnist dataset
 ```python
 import tensorflow as tf
 import numpy as np
@@ -36,6 +37,7 @@ print(test_y.shape, test_y.dtype)
 ```
 Load mnist dataset.
 
+### CurricularFace Loss
 ```python
 class CurricularFaceLoss(tf.keras.losses.Loss):
     def __init__(self, scale=30, margin=0.5, alpha=0.99, name="CurricularFaceLoss", **kwargs):
@@ -75,10 +77,42 @@ class CurricularFaceLoss(tf.keras.losses.Loss):
         loss = tf.reduce_mean(loss)
         return loss
 ```
+positive_forward = cos(Θ + m)
+
+negative_forward = cos(Θ)² + t×cos(Θ) if HARD_SAMPLE else cos(Θ)
 
 
+### Cosine Similarity Layer
+```python
+class CosSimLayer(tf.keras.layers.Layer):
+    def __init__(self, num_classes, regularizer=None, name='NormLayer', **kwargs):
+        super().__init__(name=name, **kwargs)
+        self._n_classes = num_classes
+        self._regularizer = regularizer
 
+    def build(self, embedding_shape):
+        self._w = self.add_weight(shape=(embedding_shape[-1], self._n_classes),
+                                  initializer='glorot_uniform',
+                                  trainable=True,
+                                  regularizer=self._regularizer,
+                                  name='cosine_weights')
 
+    def call(self, embedding, training=None):
+        # Normalize features and weights and compute dot product
+        x = tf.nn.l2_normalize(embedding, axis=1, name='normalize_prelogits') # (N, dim)
+        w = tf.nn.l2_normalize(self._w, axis=0, name='normalize_weights') # (dim, 10)
+        cosine_sim = tf.matmul(x, w, name='cosine_similarity') # (N, 10)
+        return cosine_sim, x
+```
+I returned normalized_embedding because of drawing plot.
+
+##### inner product formula
+
+A · B = |A|×|B|×cos(Θ) = a1×b1 + a2×b2 + ... + an×bn
+
+if |A| == |B| == 1:
+
+    cos(Θ) = a1×b1 + a2×b2 + ... + an×bn = A · B
 
 
 ---
