@@ -127,6 +127,9 @@ class SoftmaxHead(tf.keras.layers.Layer):
         return self.layer(logit * self.scale)
 ```
 logit_range : [-1, 1] -> [-30, 30]
+if using lower scale, calibration.
+![image](https://github.com/tdat97/CurricularFace-Loss/assets/48349693/f828a4c0-7d6f-4c66-a841-aa9b46fb0725)
+
 
 ### Build Model
 ```python
